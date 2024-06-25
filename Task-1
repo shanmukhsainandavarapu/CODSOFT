@@ -1,0 +1,93 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import joblib
+
+
+
+data = pd.read_csv('/workspaces/CODSOFT/Titanic-Dataset.csv')
+print(data.head())
+print(data.isnull().sum())
+
+# Pairplot
+sns.pairplot(data)
+plt.show()
+
+# Correlation Matrix Heatmap
+numerical_data = data.select_dtypes(include=['number'])  # Select numerical columns
+
+plt.figure(figsize=(10, 6))
+sns.heatmap(numerical_data.corr(), annot=True)  # Calculate correlation on numerical data
+plt.title('Correlation Matrix')
+plt.show()
+
+# Preprocessing
+# Handling missing values
+imputer = SimpleImputer(strategy='median')
+data['Age'] = imputer.fit_transform(data[['Age']])
+data['Embarked'].fillna(data['Embarked'].mode()[0], inplace=True)
+
+# Dropping 'Cabin' due to a high number of missing values
+data.drop('Cabin', axis=1, inplace=True)
+
+# Encoding categorical variables
+label_encoder = LabelEncoder()
+data['Sex'] = label_encoder.fit_transform(data['Sex'])
+data['Embarked'] = label_encoder.fit_transform(data['Embarked'])
+
+# Feature Selection
+features = ['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked']
+X = data[features]
+y = data['Survived']
+
+# Feature Scaling
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+# Initialize models
+log_reg = LogisticRegression()
+rf_clf = RandomForestClassifier()
+gb_clf = GradientBoostingClassifier()
+
+# Train and evaluate models
+models = {'Logistic Regression': log_reg, 'Random Forest': rf_clf, 'Gradient Boosting': gb_clf}
+best_model = None
+best_score = 0
+
+for name, model in models.items():
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f'{name} Accuracy: {accuracy}')
+    if accuracy > best_score:
+        best_score = accuracy
+        best_model = model
+
+# Display the best model
+print(f'Best Model: {best_model}')
+
+
+# Detailed evaluation of the best model
+y_pred = best_model.predict(X_test)
+print('Confusion Matrix:')
+print(confusion_matrix(y_test, y_pred))
+print('Classification Report:')
+print(classification_report(y_test, y_pred))
+
+# Cross-Validation
+cv_scores = cross_val_score(best_model, X_scaled, y, cv=10)
+print(f'Cross-Validated Accuracy: {cv_scores.mean()}')
+
+# Save the best model and scaler
+joblib.dump(best_model, 'titanic_survival_model.pkl')
+joblib.dump(scaler, 'scaler.pkl')
