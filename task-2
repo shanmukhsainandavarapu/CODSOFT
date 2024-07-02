@@ -1,0 +1,107 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import io
+import plotly.express as px
+
+from google.colab import files
+uploaded = files.upload()
+
+imdb_df = pd.read_csv(io.BytesIO(uploaded['IMDb Movies India.csv']), encoding='unicode_escape')
+
+imdb_df.head(10)
+
+imdb_df.shape
+imdb_df.isnull().sum()
+
+imdb_df.info()
+
+imdb_df.duplicated().sum()
+
+imdb_df.dropna(inplace = True)
+imdb_df.shape
+
+imdb_df.isnull().sum()
+
+imdb_df.drop_duplicates(inplace = True)
+
+imdb_df.shape
+
+imdb_df.columns
+
+#Data Pre-Processing
+imdb_df['Year'] = imdb_df['Year'].str.replace(r'[()]','',regex = True).astype(int)
+imdb_df['Duration'] = imdb_df['Duration'].astype(str).str.replace(' min','')
+imdb_df['Duration'] = pd.to_numeric(imdb_df['Duration'])
+
+imdb_df['Genre'] = imdb_df['Genre'].str.split(',') 
+imdb_df = imdb_df.explode('Genre')
+imdb_df['Genre'].fillna(imdb_df['Genre'].mode()[0],inplace=True)
+
+imdb_df['Votes'] = pd.to_numeric(imdb_df['Votes'].str.replace(',',''))
+imdb_df.info()
+
+#Data Visualizing
+year = px.histogram(imdb_df,x = 'Year',histnorm='probability density',nbins = 30)
+year.show()
+
+avg_rating_by_year = imdb_df.groupby(['Year','Genre'])['Rating'].mean().reset_index() # Include Genre in groupby
+top_genres = imdb_df['Genre'].value_counts().head(10).index
+average_rating_by_year = avg_rating_by_year[avg_rating_by_year['Genre'].isin(top_genres)]
+fig = px.line(average_rating_by_year,x='Year',y='Rating',color='Genre')
+fig.update_layout(title='Average Rating by Year for Top Genres', xaxis_title='Year',yaxis_title="Average Rating")
+fig.show()
+
+rating_fig = px.histogram(imdb_df, x='Rating', histnorm='probability density', nbins=30)
+rating_fig.update_layout(title='Distribution of Ratings', title_x=0.5, title_pad=dict(t=20), title_font=dict(size=20), xaxis_title='Rating', yaxis_title='Probability')
+rating_fig.show()
+
+#Feature Engineering
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import accuracy_score,mean_absolute_error,mean_squared_error, r2_score
+imdb_df.drop('Name', axis = 1, inplace = True)
+genre_mean_rating = imdb_df.groupby('Genre')['Rating'].transform('mean')
+imdb_df['Genre_mean_rating'] = genre_mean_rating
+
+director_mean_rating = imdb_df.groupby('Director')['Rating'].transform('mean')
+imdb_df['Director_encoded'] = director_mean_rating
+
+actor1_mean_rating = imdb_df.groupby('Actor 1')['Rating'].transform('mean')
+imdb_df['Actor1_encoded'] = actor1_mean_rating
+
+actor2_mean_rating = imdb_df.groupby('Actor 2')['Rating'].transform('mean')
+imdb_df['Actor2_encoded'] = actor2_mean_rating
+
+actor3_mean_rating = imdb_df.groupby('Actor 3')['Rating'].transform('mean')
+imdb_df['Actor3_encoded'] = actor3_mean_rating
+x = imdb_df[['Year','Duration','Votes','Genre_mean_rating','Director_encoded','Actor1_encoded','Actor2_encoded','Actor3_encoded']]
+y = imdb_df['Rating']
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+
+#Model Building
+
+Model = LinearRegression()
+Model.fit(x_train, y_train)
+Model_pred = Model.predict(x_test)
+
+print('The performance evaluation of Logistic is below: ', '/n')
+print('Mean squared error: ', mean_squared_error(y_test, Model_pred))
+print('Mean absolute error: ', mean_absolute_error(y_test, Model_pred))
+print('R2 score: ', r2_score(y_test, Model_pred))
+
+#Model Testing
+
+x.head(5)
+
+y.head(5)
+
+new_data = {'Year': [2019], 'Votes': [36], 'Duration': [111],'Genre_mean_rating': [5.8], 'Director_encoded': [4.5], 'Actor1_encoded': [5.3], 'Actor2_encoded': [4.5], 'Actor3_encoded': [5.8]}
+new_data = pd.DataFrame(data)
+
+new_data = new_data[x.columns]
+
+rating_predicted = Model.predict(new_data)
+print('Predicted Rating:', rating_predicted[0])
+
